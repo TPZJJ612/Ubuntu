@@ -1,7 +1,9 @@
 from __future__ import division
 import argparse
-import cPickle
+# import cPickle
+import pickle as cPickle
 import lasagne
+import psutil
 import lasagne as nn
 import numpy as np
 import pyprind
@@ -171,7 +173,7 @@ class Model:
         if is_bidirectional:
             if encoder.find('lstm') > -1:
                 prev_fwd, prev_bck = l_in, l_in
-                for _ in xrange(n_recurrent_layers):
+                for _ in range(n_recurrent_layers):
                     l_fwd = lasagne.layers.LSTMLayer(prev_fwd,
                                                      hidden_size,
                                                      grad_clipping=10,
@@ -190,7 +192,7 @@ class Model:
                     prev_fwd, prev_bck = l_fwd, l_bck
             else:
                 prev_fwd, prev_bck = l_in, l_in
-                for _ in xrange(n_recurrent_layers):
+                for _ in range(n_recurrent_layers):
                     l_fwd = lasagne.layers.RecurrentLayer(prev_fwd,
                                                           hidden_size,
                                                           nonlinearity=lasagne.nonlinearities.tanh,
@@ -214,7 +216,7 @@ class Model:
         else:
             prev_fwd = l_in
             if encoder.find('lstm') > -1:
-                for _ in xrange(n_recurrent_layers):
+                for _ in range(n_recurrent_layers):
                     l_recurrent = lasagne.layers.LSTMLayer(prev_fwd,
                                                            hidden_size,
                                                            grad_clipping=10,
@@ -224,7 +226,7 @@ class Model:
                                                            peepholes=True)
                     prev_fwd = l_recurrent
             elif encoder.find('gru') > -1:
-                for _ in xrange(n_recurrent_layers):
+                for _ in range(n_recurrent_layers):
                     l_recurrent = lasagne.layers.GRULayer(prev_fwd,
                                                           hidden_size,
                                                           grad_clipping=10,
@@ -233,7 +235,7 @@ class Model:
                                                           learn_init=True)
                     prev_fwd = l_recurrent
             else:
-                for _ in xrange(n_recurrent_layers):
+                for _ in range(n_recurrent_layers):
                     l_recurrent = lasagne.layers.RecurrentLayer(prev_fwd,
                                                                 hidden_size,
                                                                 nonlinearity=lasagne.nonlinearities.tanh,
@@ -324,7 +326,7 @@ class Model:
                 e_response = e_conv_response
 
         if use_ntn:
-            dp = T.concatenate([T.batched_dot(e_context, T.dot(e_response, self.M[i])) for i in xrange(k)], axis=1)
+            dp = T.concatenate([T.batched_dot(e_context, T.dot(e_response, self.M[i])) for i in range(k)], axis=1)
             dp += T.concatenate([e_context, e_response], axis=1).dot(self.V.T) + self.b
             dp = self.f(dp).dot(self.U)
         else:
@@ -353,8 +355,8 @@ class Model:
             self.cost += self.emb_penalty * ((embeddings - self.orig_embeddings) ** 2).sum()
 
         if penalize_activations and not conv_attn:
-            self.cost += act_penalty * T.stack([((h_context[:,i] - h_context[:,i+1]) ** 2).sum(axis=1).mean() for i in xrange(max_seqlen-1)]).mean()
-            self.cost += act_penalty * T.stack([((h_response[:,i] - h_response[:,i+1]) ** 2).sum(axis=1).mean() for i in xrange(max_seqlen-1)]).mean()
+            self.cost += act_penalty * T.stack([((h_context[:,i] - h_context[:,i+1]) ** 2).sum(axis=1).mean() for i in range(max_seqlen-1)]).mean()
+            self.cost += act_penalty * T.stack([((h_response[:,i] - h_response[:,i+1]) ** 2).sum(axis=1).mean() for i in range(max_seqlen-1)]).mean()
 
         if encoder.find('cnn') > -1 and (encoder.find('rnn') > -1 or encoder.find('lstm') > -1):
             if abs(corr_penalty) > 0:
@@ -386,7 +388,7 @@ class Model:
             params += [self.M]
 
         total_params = sum([p.get_value().size for p in params])
-        print "total_params: ", total_params
+        print("total_params: ", total_params)
 
         if 'adam' == self.optimizer:
             updates = adam(self.cost, params, learning_rate=self.lr)
@@ -422,9 +424,9 @@ class Model:
         return batch, seqlen, mask
 
     def set_shared_variables(self, dataset, index):
-        c, c_seqlen, c_mask = self.get_batch(dataset['c'], index, self.max_seqlen)
-        r, r_seqlen, r_mask = self.get_batch(dataset['r'], index, self.max_seqlen)
-        y = np.array(dataset['y'][index*self.batch_size:(index+1)*self.batch_size], dtype=np.int32)
+        c, c_seqlen, c_mask = self.get_batch(dataset['c'.encode("utf-8")], index, self.max_seqlen)
+        r, r_seqlen, r_mask = self.get_batch(dataset['r'.encode("utf-8")], index, self.max_seqlen)
+        y = np.array(dataset['y'.encode("utf-8")][index*self.batch_size:(index+1)*self.batch_size], dtype=np.int32)
         self.shared_data['c'].set_value(c)
         self.shared_data['r'].set_value(r)
         self.shared_data['y'].set_value(y)
@@ -449,9 +451,9 @@ class Model:
         test_probas = None
         cost_epoch = 0
 
-        n_train_batches = len(self.data['train']['y']) // self.batch_size
-        n_val_batches = len(self.data['val']['y']) // self.batch_size
-        n_test_batches = len(self.data['test']['y']) // self.batch_size
+        n_train_batches = len(self.data['train']['y'.encode("utf-8")]) // self.batch_size
+        n_val_batches = len(self.data['val']['y'.encode("utf-8")]) // self.batch_size
+        n_test_batches = len(self.data['test']['y'.encode("utf-8")]) // self.batch_size
 
         while (epoch < n_epochs):
             epoch += 1
@@ -468,23 +470,23 @@ class Model:
                 self.set_zero(self.zero_vec)
                 bar.update()
             end_time = time.time()
-            print "cost: ", (total_cost / len(indices)), " took: %d(s)" % (end_time - start_time)
-            train_losses = [self.compute_loss(self.data['train'], i) for i in xrange(n_train_batches)]
-            train_perf = 1 - np.sum(train_losses) / len(self.data['train']['y'])
-            val_losses = [self.compute_loss(self.data['val'], i) for i in xrange(n_val_batches)]
-            val_perf = 1 - np.sum(val_losses) / len(self.data['val']['y'])
-            print 'epoch %i, train_perf %f, val_perf %f' % (epoch, train_perf*100, val_perf*100)
+            print ("cost: ", (total_cost / len(indices)), " took: %d(s)" % (end_time - start_time))
+            train_losses = [self.compute_loss(self.data['train'], i) for i in range(n_train_batches)]
+            train_perf = 1 - np.sum(train_losses) / len(self.data['train']['y'.encode("utf-8")])
+            val_losses = [self.compute_loss(self.data['val'], i) for i in range(n_val_batches)]
+            val_perf = 1 - np.sum(val_losses) / len(self.data['val']['y'.encode("utf-8")])
+            print ('epoch %i, train_perf %f, val_perf %f' % (epoch, train_perf*100, val_perf*100))
 
-            val_probas = np.concatenate([self.compute_probas(self.data['val'], i) for i in xrange(n_val_batches)])
+            val_probas = np.concatenate([self.compute_probas(self.data['val'], i) for i in range(n_val_batches)])
             val_recall_k = self.compute_recall_ks(val_probas)
 
             if val_perf > best_val_perf or val_recall_k[10][1] > best_val_rk1:
                 best_val_perf = val_perf
                 best_val_rk1 = val_recall_k[10][1]
-                test_losses = [self.compute_loss(self.data['test'], i) for i in xrange(n_test_batches)]
-                test_perf = 1 - np.sum(test_losses) / len(self.data['test']['y'])
-                print 'test_perf: %f' % (test_perf*100)
-                test_probas = np.concatenate([self.compute_probas(self.data['test'], i) for i in xrange(n_test_batches)])
+                test_losses = [self.compute_loss(self.data['test'], i) for i in range(n_test_batches)]
+                test_perf = 1 - np.sum(test_losses) / len(self.data['test']['y'.encode("utf-8")])
+                print ('test_perf: %f' % (test_perf*100))
+                test_probas = np.concatenate([self.compute_probas(self.data['test'], i) for i in range(n_test_batches)])
                 self.compute_recall_ks(test_probas)
             else:
                 if not self.fine_tune_W:
@@ -501,18 +503,18 @@ class Model:
       recall_k = {}
       for group_size in [2, 5, 10]:
           recall_k[group_size] = {}
-          print 'group_size: %d' % group_size
+          print ('group_size: %d' % group_size)
           for k in [1, 2, 5]:
               if k < group_size:
                   recall_k[group_size][k] = self.recall(probas, k, group_size)
-                  print 'recall@%d' % k, recall_k[group_size][k]
+                  print ('recall@%d' % k, recall_k[group_size][k])
       return recall_k
 
     def recall(self, probas, k, group_size):
         test_size = 10
         n_batches = len(probas) // test_size
         n_correct = 0
-        for i in xrange(n_batches):
+        for i in range(n_batches):
             batch = np.array(probas[i*test_size:(i+1)*test_size])[:group_size]
             #p = np.random.permutation(len(batch))
             #indices = p[np.argpartition(batch[p], -k)[-k:]]
@@ -597,9 +599,9 @@ def main():
   parser = argparse.ArgumentParser()
   parser.register('type','bool',str2bool)
   parser.add_argument('--conv_attn', type='bool', default=False, help='Use convolutional attention')
-  parser.add_argument('--encoder', type=str, default='rnn', help='Encoder')
-  parser.add_argument('--hidden_size', type=int, default=200, help='Hidden size')
-  parser.add_argument('--fine_tune_W', type='bool', default=False, help='Whether to fine-tune W')
+  parser.add_argument('--encoder', type=str, default='lstm', help='Encoder')
+  parser.add_argument('--hidden_size', type=int, default=300, help='Hidden size')
+  parser.add_argument('--fine_tune_W', type='bool', default=True, help='Whether to fine-tune W')
   parser.add_argument('--fine_tune_M', type='bool', default=False, help='Whether to fine-tune M')
   parser.add_argument('--batch_size', type=int, default=256, help='Batch size')
   parser.add_argument('--shuffle_batch', type='bool', default=False, help='Shuffle batch')
@@ -616,7 +618,7 @@ def main():
   parser.add_argument('--corr_penalty', type=float, default=0.0, help='Correlation penalty')
   parser.add_argument('--xcov_penalty', type=float, default=0.0, help='XCov penalty')
   parser.add_argument('--n_recurrent_layers', type=int, default=1, help='Num recurrent layers')
-  parser.add_argument('--input_dir', type=str, default='.', help='Input dir')
+  parser.add_argument('--input_dir', type=str, default='dataset_1MM', help='Input dir')
   parser.add_argument('--save_model', type='bool', default=False, help='Whether to save the model')
   parser.add_argument('--model_fname', type=str, default='model.pkl', help='Model filename')
   parser.add_argument('--dataset_fname', type=str, default='dataset.pkl', help='Dataset filename')
@@ -631,10 +633,10 @@ def main():
   parser.add_argument('--k', type=int, default=4, help='Size of k in NTN')
   parser.add_argument('--seed', type=int, default=42, help='Random seed')
   args = parser.parse_args()
-  print 'args:', args
+  print ('args:', args)
   np.random.seed(args.seed)
 
-  print "loading data...",
+  print ("loading data...",)
   if args.use_pv:
       data = cPickle.load(open('../data/all_pv.pkl'))
       train_data = { 'c': data['c'][:1000000], 'r': data['r'][:1000000], 'y': data['y'][:1000000] }
@@ -648,9 +650,18 @@ def main():
       W = load_pv_vecs('../data/pv_vectors_%dd.txt' % args.pv_ndims, args.pv_ndims)
       args.max_seqlen = 21
   else:
-      train_data, val_data, test_data = cPickle.load(open('%s/%s' % (args.input_dir, args.dataset_fname), 'rb'))
-      W, _ = cPickle.load(open('%s/%s' % (args.input_dir, args.W_fname), 'rb'))
-  print "data loaded!"
+      # python27
+      # train_data, val_data, test_data = cPickle.load(open('%s/%s' % (args.input_dir, args.dataset_fname), 'rb'))
+      # python3
+      tmp_filename = args.input_dir + "/" + args.dataset_fname
+      # train_data, val_data, test_data = cPickle.load(open(tmp_filename, mode='r',encoding="gbk"))
+      with open(tmp_filename, 'rb') as f:
+          train_data, val_data, test_data = cPickle.load(f, encoding='bytes')
+      tmp_filename2 = args.input_dir + "/" + args.W_fname
+      with open(tmp_filename2, 'rb') as f:
+          W, _ = cPickle.load(f, encoding='bytes')
+      # W, _ = cPickle.load(open('%s/%s' % (args.input_dir, args.W_fname), 'rb'))
+  print ("data loaded!")
 
   args.data = { 'train' : train_data, 'val': val_data, 'test': test_data }
   args.W = W.astype(theano.config.floatX)
