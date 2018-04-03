@@ -14,16 +14,20 @@ default_encoding = 'utf-8'
 
 # sys.setdefaultencoding(default_encoding)
 
-input_dir = "D:/ReadBehavioursLog/ubottu/src/dataset_1MM/W.pkl"
+input_dir = "D:/imagerecognitionTensorFlowAlexnet/Ubuntu/src/dataset_1MM/"
 # input_dir = "README.md"
-# W_fname = ""
-
-with open(input_dir, mode="rb") as f:
+W_fname = "W.pkl"
+dataset_fname = "dataset.pkl"
+with open(input_dir + dataset_fname, mode="rb") as f:
     # f1 = f.readlines()
-    W, W2 = pickle.load(f, encoding="bytes")
+    train_data, val_data, test_data = pickle.load(f, encoding="bytes")
     # for i in f.readline():
     #     print(i)
 # print(f1)
+tmp_filename2 = input_dir + "/" + W_fname
+with open(tmp_filename2, 'rb') as f:
+    W, _ = pickle.load(f, encoding='bytes')
 
-print(W2[])
+
+# print(W2[])
 print("done")
